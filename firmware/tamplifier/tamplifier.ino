@@ -1,9 +1,8 @@
 #include "./config.h"
 #include <Wire.h>
-#include <WiFi.h>
-#include <esp_now_midi.h>
-#include <Adafruit_TCS34725.h>
-#include <AceButton.h>
+#include "enomik_client.h"
+#include <Adafruit_TCS34725.h> //https://github.com/adafruit/Adafruit_TCS34725
+#include <AceButton.h> //https://github.com/bxparks/AceButton
 #include <tampleDetector.h>
 #include <movingAvg.h>  // https://github.com/JChristensen/movingAvg
 
@@ -14,7 +13,7 @@ Adafruit_TCS34725 _tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS347
 
 AceButton _button(PIN_BUTTON);
 
-esp_now_midi ESP_NOW_MIDI;
+enomik::Client _client;
 
 movingAvg _faderValue(16);
 
@@ -22,25 +21,15 @@ TampleDetector _tampleDetector;
 
 void handleButtonEvent(AceButton *button, uint8_t eventType, uint8_t buttonState);
 
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-void customOnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#else
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#endif
-
 void setup() {
   Serial.begin(115200);
   analogReadResolution(12);  // 12 bits = 0–4095
 
   delay(3000);
-  Serial.print("setting up wifi and esp now to midi ... ");
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  ESP_NOW_MIDI.addPeer(reaperMacAddress);
+  Serial.print("setting up enomik client ... ");
+  _client.begin();
+  _client.addPeer(peerMacAddress);
+  _client.addPeer(reaperMacAddress);
   Serial.println("done");
 
 
@@ -72,7 +61,7 @@ void setup() {
 }
 
 void loop() {
-  auto timestamp = millis();
+  _client.loop();
   _button.check();
   _tcs.getRGB(&red, &green, &blue);
   _tampleDetector.addEntryToHistory(red, green, blue);
@@ -129,13 +118,13 @@ void handleButtonEvent(AceButton * /*button*/, uint8_t eventType,
     case AceButton::kEventReleased:
       {
         Serial.println("AceButton::kEventPressed");
-        auto result = ESP_NOW_MIDI.sendControlChange(tample._recordCC, 127, sampleBank);
+        _client.sendControlChange(tample._recordCC, 127, sampleBank);
         break;
       }
     case AceButton::kEventPressed:
       {
         Serial.println("AceButton::kEventReleased");
-        auto result = ESP_NOW_MIDI.sendControlChange(tample._recordCC, 0, sampleBank);
+        _client.sendControlChange(tample._recordCC, 0, sampleBank);
         break;
       }
   }

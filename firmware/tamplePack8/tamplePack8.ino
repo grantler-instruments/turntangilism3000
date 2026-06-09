@@ -1,12 +1,9 @@
 #include "./config.h"
 #include <Wire.h>
-#include <esp_now_midi.h>
-#include <WiFi.h>
-#include <MIDI.h>
-#include <Adafruit_TinyUSB.h>
+#include "enomik_client.h"
 #include <Adafruit_TCS34725.h>
 #include <AceButton.h>
-#include <TCA9548.h>
+#include <TCA9548.h> //https://github.com/RobTillaart/TCA9548
 #include <tampleDetector.h>
 #include <Parameter.h>
 #include <movingAvg.h>  // https://github.com/JChristensen/movingAvg
@@ -40,7 +37,7 @@ AceButton _buttons[NUMBER_OF_SLOTS];
 unsigned long _timestamp = 0;
 
 
-esp_now_midi ESP_NOW_MIDI;
+enomik::Client _client;
 
 TCA9548 _mux(0x70);
 
@@ -101,10 +98,10 @@ void setup() {
   }
   Serial.println("done");
 
-  Serial.print("setting up wifi and esp now to midi ... ");
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress);
-  ESP_NOW_MIDI.addPeer(reaperMacAddress);
+  Serial.print("setting up enomik client ... ");
+  _client.begin();
+  _client.addPeer(peerMacAddress);
+  _client.addPeer(reaperMacAddress);
   Serial.println("done");
 }
 
@@ -149,12 +146,12 @@ void readAllSensors() {
   }
 
   if (oldSampleBank != sampleBank) {
-    ESP_NOW_MIDI.sendProgramChange(sampleBank, ID);
+    _client.sendProgramChange(sampleBank, ID);
   }
 }
 
 void loop() {
-  auto timestamp = millis();
+  _client.loop();
   readAllSensors();
 }
 
@@ -175,7 +172,7 @@ void handleEvent(AceButton *button, uint8_t eventType, uint8_t buttonState) {
 
   switch (eventType) {
     case AceButton::kEventPressed:
-      ESP_NOW_MIDI.sendControlChange(NOTE + id, tample._note, ID);
+      _client.sendControlChange(NOTE + id, tample._note, ID);
       break;
     case AceButton::kEventReleased:
       break;

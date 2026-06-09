@@ -1,18 +1,11 @@
 #include "config.h"
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
-
+#include "enomik_client.h"
 #include <AceButton.h>
 using namespace ace_button;
 AceButton _buttons[NUMBER_OF_TRACKS];
 
 
-esp_now_midi ESP_NOW_MIDI;
-void customOnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
-  // Serial.print("Custom Callback - Status: ");
-  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
+enomik::Client _client;
 
 void onNoteOn(byte channel, byte note, byte velocity) {
   Serial.printf("Note On - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
@@ -65,27 +58,29 @@ void setup() {
   // buttonConfig->setFeature(ButtonConfig::kFeatureLongPress);
   // buttonConfig->setFeature(ButtonConfig::kFeatureRepeatPress);
 
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(broadcastAddress);
-  ESP_NOW_MIDI.addPeer(reaperMacAddress);
-  // ESP_NOW_MIDI.setup(broadcastAddress); //or get rid of the custom send function and use the default one
+  Serial.print("setting up enomik client ... ");
+  _client.begin();
+  _client.addPeer(broadcastAddress);
+  _client.addPeer(reaperMacAddress);
+  Serial.println("done");
 
   // all of these midi handlers are optional, depends on the usecase, very often you just wanna send data and not receive
   // e.g. this can be used for calibration, or maybe you wanna connect an amp via i2s and render some sound
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);
-  ESP_NOW_MIDI.setHandleControlChange(onControlChange);
-  ESP_NOW_MIDI.setHandleProgramChange(onProgramChange);
-  ESP_NOW_MIDI.setHandlePitchBend(onPitchBend);
-  ESP_NOW_MIDI.setHandleAfterTouchChannel(onAfterTouch);
-  ESP_NOW_MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
-  ESP_NOW_MIDI.setHandleStart(onStart);
-  ESP_NOW_MIDI.setHandleStop(onStop);
-  ESP_NOW_MIDI.setHandleContinue(onContinue);
-  ESP_NOW_MIDI.setHandleClock(onClock);
+  _client.setHandleNoteOn(onNoteOn);
+  _client.setHandleNoteOff(onNoteOff);
+  _client.setHandleControlChange(onControlChange);
+  _client.setHandleProgramChange(onProgramChange);
+  _client.setHandlePitchBend(onPitchBend);
+  _client.setHandleAfterTouchChannel(onAfterTouch);
+  _client.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.setHandleStart(onStart);
+  _client.setHandleStop(onStop);
+  _client.setHandleContinue(onContinue);
+  _client.setHandleClock(onClock);
 }
 
 void loop() {
+  _client.loop();
   for (uint8_t i = 0; i < NUMBER_OF_TRACKS; i++) {
     _buttons[i].check();
   }
@@ -122,14 +117,14 @@ void handleEvent(AceButton* button, uint8_t eventType, uint8_t buttonState) {
       {
         Serial.print("pressed: ");
         Serial.println(index);
-        esp_err_t result = ESP_NOW_MIDI.sendNoteOn(trackNotes[index], 127, ID);
+        _client.sendNoteOn(trackNotes[index], 127, MIDI_CHANNEL);
         break;
       }
     case AceButton::kEventReleased:
       {
         Serial.print("released: ");
         Serial.println(index);
-        esp_err_t result = ESP_NOW_MIDI.sendNoteOff(trackNotes[index], 0, ID);
+        _client.sendNoteOff(trackNotes[index], 0, MIDI_CHANNEL);
         break;
       }
   }
