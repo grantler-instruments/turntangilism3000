@@ -1,12 +1,11 @@
 #include "./config.h"
 #include <Wire.h>
-#include <WiFi.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_TCS34725.h>
 #include <AceButton.h>
 #include <Adafruit_NeoPixel.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 #include <tampleDetector.h>
 
 using namespace ace_button;
@@ -27,11 +26,7 @@ Mode _mode = Mode::NONE;
 unsigned long lastSendTime = 0;
 
 
-esp_now_midi ESP_NOW_MIDI;
-// void customOnDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
-//   // Serial.print("Custom Callback - Status: ");
-//   // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-// }
+enomik::Client _client;
 
 Adafruit_MPU6050 _mpu;
 Adafruit_TCS34725 _tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
@@ -102,9 +97,11 @@ void setup() {
   _leds.show();   // Turn OFF all pixels ASAP
   _leds.setBrightness(50);
 
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress);
-  ESP_NOW_MIDI.addPeer(reaperMacAddress);
+  Serial.print("setting up enomik client ... ");
+  _client.begin();
+  _client.addPeer(peerMacAddress);
+  _client.addPeer(reaperMacAddress);
+  Serial.println("done");
 
 
   Serial.print("setting up mpu ... ");
@@ -139,6 +136,7 @@ void setup() {
 }
 
 void loop() {
+  _client.loop();
   for (uint8_t i = 0; i < NUMBER_OF_BUTTONS; i++) {
     _buttons[i].check();
   }
@@ -199,9 +197,9 @@ void loop() {
     auto controlChangeValue = (int)(map(yaw, 359, 0, 0, 127));
 
     if (_mode == Mode::SCRATCH) {
-      ESP_NOW_MIDI.sendPitchBend(pitchBendValue, ID);
+      _client.sendPitchBend(pitchBendValue, ID);
     } else if (_mode == Mode::POSITION) {
-      ESP_NOW_MIDI.sendControlChange(POSITON_CC, controlChangeValue, ID);
+      _client.sendControlChange(POSITON_CC, controlChangeValue, ID);
     }
   }
 }
@@ -265,8 +263,8 @@ void handleEvent(AceButton* button, uint8_t eventType, uint8_t buttonState) {
           {
             Serial.println("tample has been pressed");
             Serial.println(tample._name);
-            ESP_NOW_MIDI.sendProgramChange(ID, ID);
-            ESP_NOW_MIDI.sendControlChange(127, tample._note, ID);
+            _client.sendProgramChange(ID, ID);
+            _client.sendControlChange(127, tample._note, ID);
           }
       }
 
@@ -285,7 +283,7 @@ void handleEvent(AceButton* button, uint8_t eventType, uint8_t buttonState) {
         _leds.setPixelColor(2, color);
         _leds.setPixelColor(3, color);
         _leds.show();
-        ESP_NOW_MIDI.sendControlChange(127, 127, ID);
+        _client.sendControlChange(127, 127, ID);
       }
       break;
   }
