@@ -177,22 +177,18 @@ void loop() {
     bool forceSend = (currentMillis - lastForcedSendTime >= FORCE_SEND_MS);
 
     if (_mode == Mode::SCRATCH) {
-      int pitchBendValue = map((int)yaw, 0, 359, -8192, 8191);
+      int pitchBendValue = map((int)yaw, 359, 0, -8192, 8191);
 
-      if (forceSend ||
-          lastSentPitchBend == INT_MIN ||
-          abs(pitchBendValue - lastSentPitchBend) >= PITCH_BEND_THRESHOLD) {
+      if (forceSend || lastSentPitchBend == INT_MIN || abs(pitchBendValue - lastSentPitchBend) >= PITCH_BEND_THRESHOLD) {
         _client.sendPitchBend(pitchBendValue, ID);
         lastSentPitchBend = pitchBendValue;
         lastForcedSendTime = currentMillis;
       }
 
     } else if (_mode == Mode::POSITION) {
-      int controlChangeValue = map((int)yaw, 0, 359, 0, 127);
+      int controlChangeValue = map((int)yaw, 359, 0, 0, 127);
 
-      if (forceSend ||
-          lastSentCC < 0 ||
-          abs(controlChangeValue - lastSentCC) >= CC_THRESHOLD) {
+      if (forceSend || lastSentCC < 0 || abs(controlChangeValue - lastSentCC) >= CC_THRESHOLD) {
         _client.sendControlChange(POSITON_CC, controlChangeValue, ID);
         lastSentCC = controlChangeValue;
         lastForcedSendTime = currentMillis;
