@@ -30,6 +30,10 @@ static const int PITCH_BEND_THRESHOLD = 64;
 static const int CC_THRESHOLD = 1;
 static const unsigned long FORCE_SEND_MS = 500;
 
+// Minimum yaw change (in degrees) required to trigger a send
+static const float MIN_YAW_DELTA = 1.0;
+float lastSentYaw = 0.0;
+
 enomik::Client _client;
 
 Adafruit_MPU6050 _mpu;
@@ -56,7 +60,6 @@ void scanI2C() {
   for (byte address = 1; address < 127; address++) {
     Wire.beginTransmission(address);
     byte error = Wire.endTransmission();
-
     if (error == 0) {
       Serial.print("I2C device found at address 0x");
       Serial.println(address, HEX);
@@ -176,12 +179,18 @@ void loop() {
 
     bool forceSend = (currentMillis - lastForcedSendTime >= FORCE_SEND_MS);
 
+    // Skip send if yaw hasn't moved enough since last send (unless forced)
+    if (abs(yaw - lastSentYaw) < MIN_YAW_DELTA && !forceSend) {
+      return;
+    }
+
     if (_mode == Mode::SCRATCH) {
       int pitchBendValue = map((int)yaw, 359, 0, -8192, 8191);
 
       if (forceSend || lastSentPitchBend == INT_MIN || abs(pitchBendValue - lastSentPitchBend) >= PITCH_BEND_THRESHOLD) {
         _client.sendPitchBend(pitchBendValue, ID);
         lastSentPitchBend = pitchBendValue;
+        lastSentYaw = yaw;
         lastForcedSendTime = currentMillis;
       }
 
@@ -191,6 +200,7 @@ void loop() {
       if (forceSend || lastSentCC < 0 || abs(controlChangeValue - lastSentCC) >= CC_THRESHOLD) {
         _client.sendControlChange(POSITON_CC, controlChangeValue, ID);
         lastSentCC = controlChangeValue;
+        lastSentYaw = yaw;
         lastForcedSendTime = currentMillis;
       }
     }
